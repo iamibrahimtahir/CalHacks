@@ -65,26 +65,32 @@ btnReset.addEventListener('click', () => {
   ctx.filter = 'none';
 });
 
-function mockClaudeSuggest(text){
-  const actions = ['edit','caption','thumbnail','storyboard'];
-  const pick = actions[Math.floor(Math.random()*actions.length)];
-  const sev = ['low','med','high'][Math.floor(Math.random()*3)];
-  return {
-    action: pick,
-    targets: ['image'],
-    params: { filter: 'cinematic1', text: text.slice(0,64), trim: {start:0.0, end: Math.random()*7+3} },
-    rationale: 'Increase first-frame clarity and add hook within 2s.',
-    next_tests: ['brighter first frame','shorter hook','higher contrast'],
-    severity: sev
-  };
+async function getClaudeSuggestion(text) {
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
+  });
+  return res.json();
 }
+
+btnSuggest.addEventListener('click', async () => {
+  suggestionsEl.textContent = 'Thinking...';
+  try {
+    const data = await getClaudeSuggestion(notes.value || 'Make it pop');
+    currentSuggestion = data.suggestions;
+    suggestionsEl.textContent = JSON.stringify(currentSuggestion, null, 2);
+  } catch (err) {
+    suggestionsEl.textContent = 'Error getting suggestion.';
+  }
+});
 
 btnSuggest.addEventListener('click', () => {
   currentSuggestion = mockClaudeSuggest(notes.value || 'Make it pop');
   suggestionsEl.textContent = JSON.stringify(currentSuggestion, null, 2);
 });
 
-btnApply.addEventListener('click', () => {
+btnApply.addEventListener('click', async () => {
   if(!currentSuggestion || !originalBitmap) return;
   if(currentSuggestion.action === 'edit'){
     btnCinematic.click();
@@ -108,7 +114,13 @@ btnApply.addEventListener('click', () => {
     tctx.drawImage(canvas, 0, 0, thumb.width, thumb.height);
     const div = document.createElement('div'); div.className='variant';
     div.appendChild(thumb);
-    const score = (Math.random()*10).toFixed(2);
+    const variantData = thumb.toDataURL();
+    const res = await fetch('/api/fetch-score', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ image: variantData })
+    });
+    const { score } = await res.json();
     const p = document.createElement('p'); p.textContent = 'Score: '+score;
     div.appendChild(p);
     variantsEl.appendChild(div);
