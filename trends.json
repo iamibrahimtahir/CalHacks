@@ -1,0 +1,10 @@
+{
+  "hook_seconds": 2.5,
+  "preferred_filters": [
+    "cinematic1",
+    "vivid1",
+    "punchy2"
+  ],
+  "text_contrast_min": 4.5,
+  "first_frame_brightness_min": 0.2
+}
