@@ -9,19 +9,15 @@
 <body>
   <header>
     <h1>AI Creativity Tool</h1>
-    <p>Image/video editor with AI suggestions (mocked)</p>
+    <p>Image/video editor with AI suggestions</p>
   </header>
 
   <main class="grid">
     <section>
       <h2>Asset</h2>
       <input id="file" type="file" accept="image/*,video/*">
-      <canvas id="canvas"></canvas>
+      <div class="canvas-wrapper"><canvas id="canvas"></canvas></div>
       <video id="video" controls style="display:none"></video>
-      <div class="controls">
-        <button id="btnCinematic">Apply Cinematic Filter</button>
-        <button id="btnReset">Reset</button>
-      </div>
     </section>
 
     <section>
@@ -39,7 +35,9 @@
   </main>
 
   <footer>
-    <small>Adapters: Claude / Fetch.ai / AppLovin (mock). Replace with real APIs.</small>
+    <small>
+    Powered by <strong>Claude</strong> · <strong>Fetch.ai</strong> · <strong>AppLovin MAX</strong>
+    </small>
   </footer>
 
 <script src="app.js"></script>
