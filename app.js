@@ -1,4 +1,3 @@
-// Minimal client-side editor + mock AI
 const fileInput = document.getElementById('file');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -48,10 +47,8 @@ fileInput.addEventListener('change', e => {
 btnCinematic.addEventListener('click', () => {
   if(!originalBitmap) return;
   ctx.putImageData(originalBitmap,0,0);
-  // simple 'cinematic' look: slight contrast + desaturate + vignette
   ctx.filter = 'contrast(1.08) saturate(0.9) brightness(1.03)';
   ctx.drawImage(canvas,0,0);
-  // vignette
   const grd = ctx.createRadialGradient(canvas.width/2, canvas.height/2, Math.min(canvas.width,canvas.height)/4, canvas.width/2, canvas.height/2, Math.max(canvas.width,canvas.height)/1.2);
   grd.addColorStop(0,'rgba(0,0,0,0)');
   grd.addColorStop(1,'rgba(0,0,0,0.35)');
@@ -65,31 +62,52 @@ btnReset.addEventListener('click', () => {
   ctx.filter = 'none';
 });
 
-function mockClaudeSuggest(text){
-  const actions = ['edit','caption','thumbnail','storyboard'];
-  const pick = actions[Math.floor(Math.random()*actions.length)];
-  const sev = ['low','med','high'][Math.floor(Math.random()*3)];
-  return {
-    action: pick,
-    targets: ['image'],
-    params: { filter: 'cinematic1', text: text.slice(0,64), trim: {start:0.0, end: Math.random()*7+3} },
-    rationale: 'Increase first-frame clarity and add hook within 2s.',
-    next_tests: ['brighter first frame','shorter hook','higher contrast'],
-    severity: sev
-  };
+async function getClaudeSuggestion(text) {
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
+  });
+  return res.json();
 }
 
-btnSuggest.addEventListener('click', () => {
-  currentSuggestion = mockClaudeSuggest(notes.value || 'Make it pop');
-  suggestionsEl.textContent = JSON.stringify(currentSuggestion, null, 2);
+btnSuggest.addEventListener('click', async () => {
+  btnSuggest.disabled = true;
+  suggestionsEl.textContent = 'Thinking...';
+  try {
+    const result = await getClaudeSuggestion(notes.value || 'Make it pop');
+    currentSuggestion = result;
+    suggestionsEl.textContent = JSON.stringify(result, null, 2);
+  } catch {
+    suggestionsEl.textContent = 'Error getting suggestion.';
+  }
+  btnSuggest.disabled = false;
 });
 
-btnApply.addEventListener('click', () => {
+async function generateAdPackage(brief) {
+  const res = await fetch('/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(brief)
+  });
+
+  if (!res.ok) throw new Error('Failed to generate assets');
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ad_creatives.zip';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+btnApply.addEventListener('click', async () => {
   if(!currentSuggestion || !originalBitmap) return;
   if(currentSuggestion.action === 'edit'){
     btnCinematic.click();
   } else if (currentSuggestion.action === 'caption'){
-    // draw simple caption
     ctx.putImageData(originalBitmap,0,0);
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, canvas.height-48, canvas.width, 48);
@@ -99,7 +117,6 @@ btnApply.addEventListener('click', () => {
   } else {
     btnCinematic.click();
   }
-  // create two mock variants
   variantsEl.innerHTML = '';
   for(let i=0;i<2;i++){
     const thumb = document.createElement('canvas');
@@ -108,9 +125,42 @@ btnApply.addEventListener('click', () => {
     tctx.drawImage(canvas, 0, 0, thumb.width, thumb.height);
     const div = document.createElement('div'); div.className='variant';
     div.appendChild(thumb);
-    const score = (Math.random()*10).toFixed(2);
+    const variantData = thumb.toDataURL(); // base64 of the variant image
+    const res = await fetch('/api/fetch-score', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ image: variantData })
+    });
+    const { score } = await res.json();
     const p = document.createElement('p'); p.textContent = 'Score: '+score;
     div.appendChild(p);
     variantsEl.appendChild(div);
+  }
+  try {
+    const brief = {
+      product: "Demo Product",
+      audience: "general audience",
+      goal: notes.value || "Improve engagement",
+      tone: "playful",
+      num_variants: 3
+    };
+
+    console.log("Sending brief to backend:", brief);
+
+    btnApply.disabled = true;
+    btnApply.textContent = "Packaging...";
+
+    await generateAdPackage(brief);
+
+    btnApply.textContent = "Download Ready!";
+  } catch (err) {
+    console.error(err);
+    btnApply.textContent = "Error generating package";
+    alert("Failed to generate ad package. Check console for details.");
+  } finally {
+    setTimeout(() => {
+      btnApply.disabled = false;
+      btnApply.textContent = "Apply Suggestion";
+    }, 3000);
   }
 });
